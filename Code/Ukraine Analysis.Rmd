@@ -1,0 +1,100 @@
+---
+title: "Ukraine Appropriations Analysis"
+author: "Justin S."
+date: "`r Sys.Date()`"
+output:
+  rmdformats::readthedown:
+    self_contained: TRUE
+    toc_depth: 4
+    highlight: tango
+    code_folding: hide
+    lightbox: TRUE
+    gallery: TRUE
+    toc_float: # a float toc will stick to the sidebar when scrolling
+      collapsed: false
+
+---
+
+In this analysis, I will...
+
+```{r fig.align='center', fig.height=6, fig.width=6, message=FALSE, warning=FALSE, include=FALSE}
+# Set our plot specifications for the rest of the document.
+knitr::opts_chunk$set(fig.width = 9,
+                      fig.height = 6,
+                      fig.align = "center",
+                      # Set our code specifications for the rest of the document
+                      echo = F,
+                      warning = F,
+                      message = F)
+```
+
+
+```{r set-up_and_clean_data, include=FALSE}
+###########################################################################
+## Set Up -----------------------------------------------------------------
+###########################################################################
+# Bring in packages
+suppressMessages(library("pacman"))
+pacman::p_load("tidyverse", # Used for data wrangling,
+               "tidyr", # Used for data cleaning,
+               DataExplorer, # Exploratory data analysis
+               "ggplot2", # Used for visualizations,
+               "here", # Used for navigating project structure
+               "readxl", # Used for loading excel files,
+               "pander", # Used for pretty tables,
+               "kableExtra", # Used for RMarkdown formatting
+               "janitor", # Used for data cleaning,
+               "stringr")  # Used for string manipulation
+
+# Get rid of scientific notation
+options(scipen = 999)
+
+```
+
+
+Let's start by taking a look at the data.
+
+```{r display_data}
+########################################################################
+### View Data --------------------------------------------------------
+########################################################################
+ukraine <- read_excel(here::here('Data/Ukraine Appropriations Breakdown.xlsx'))
+
+# Let's view the data output
+# In any kable outputs, display NAs as blanks
+opts <- options(knitr.kable.NA = "")
+
+ukraine %>% 
+  head(25) %>%
+  # Fix up the headers by replacing the underscores with spaces
+  rename_all(funs(str_replace_all(., "_", " "))) %>% 
+  # Make everything proper capitalization
+  # rename_all(funs(str_to_title)) %>% 
+  kable() %>%
+  kable_styling(bootstrap_options = c("striped", "hover"),
+                full_width = F,
+                font_size = 10) %>%
+  # Make the header row bold and black so it's easier to read
+  row_spec(0, bold = T, color = "black") %>% 
+  scroll_box(height = "400px", width = "100%")
+```
+
+
+
+
+```{r clean_data}
+ukraine_cleaned <- ukraine %>% 
+  janitor::clean_names() %>% 
+  # Convert the appropriations column into a numeric
+  mutate(appropriations_cleaned = stringr::str_remove(appropriations, '[$]'),
+         appropriations_cleaned = if_else(
+           stringr::str_detect(appropriations_cleaned, 'million'),
+           readr::parse_number(ukraine_cleaned$appropriations) * 1000000,
+           readr::parse_number(ukraine_cleaned$appropriations) * 1000000000
+         ))
+  
+  
+```
+
+
+
