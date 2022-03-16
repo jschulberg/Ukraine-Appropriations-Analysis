@@ -15,7 +15,7 @@ output:
 
 ---
 
-In this analysis, I will...
+On x, Congress approved its omnibus spending bill, which included $13.6 billion in aid for Ukraine. This brief analysis looks at a breakdown of the [Ukraine approprations](https://appropriations.house.gov/sites/democrats.appropriations.house.gov/files/Ukraine%20Supplemental%20Summary.pdf), looking at the line items in the bill.
 
 ```{r fig.align='center', fig.height=6, fig.width=6, message=FALSE, warning=FALSE, include=FALSE}
 # Set our plot specifications for the rest of the document.
@@ -38,6 +38,7 @@ suppressMessages(library("pacman"))
 pacman::p_load("tidyverse", # Used for data wrangling,
                "tidyr", # Used for data cleaning,
                DataExplorer, # Exploratory data analysis
+               readr,
                "ggplot2", # Used for visualizations,
                "here", # Used for navigating project structure
                "readxl", # Used for loading excel files,
@@ -89,12 +90,95 @@ ukraine_cleaned <- ukraine %>%
   mutate(appropriations_cleaned = stringr::str_remove(appropriations, '[$]'),
          appropriations_cleaned = if_else(
            stringr::str_detect(appropriations_cleaned, 'million'),
-           readr::parse_number(ukraine_cleaned$appropriations) * 1000000,
-           readr::parse_number(ukraine_cleaned$appropriations) * 1000000000
+           readr::parse_number(appropriations) * 1000000,
+           readr::parse_number(appropriations) * 1000000000
          ))
-  
   
 ```
 
 
+```{r}
+ukraine_cleaned %>%
+  # Group by title
+  group_by(title) %>%
+  # Count everything up!
+  summarise(total_appr = sum(appropriations_cleaned)/1000000) %>%
+  ungroup() %>%
+  # Start our visualization, creating our groups by party affiliation
+  ggplot(aes(x = reorder(title, -total_appr), y = total_appr, fill = total_appr)) +
+  geom_col() +
+  # Change the theme to classic
+  theme_classic() +
+  scale_fill_gradient(low = 'gray', high = 'slateblue', name = 'Appropriations') +
+  # Let's change the names of the axes and title
+    xlab("Title of Bill") +
+    ylab("Total Appropriations (millions of $)") +
+    labs(title = "Total Appropriations in Congressional Spending Bill (H.R. 2471) by Title",
+         subtitle = paste0("Allocations are broken out across ", n_distinct(ukraine_cleaned$title), " Titles and ", nrow(ukraine_cleaned), " line items."),
+         caption = "Data is gathered from the House of Representatives Appropriations page at https://appropriations.house.gov/news/press-releases/house-passes-government-funding-legislation") +
+    # format our title and subtitle
+    theme(plot.title = element_text(hjust = 0, color = "slateblue4"),
+          plot.subtitle = element_text(hjust = 0, color = "slateblue2", size = 10),
+          plot.caption = element_text(color = "dark gray", size = 10, face = "italic"))
+```
 
+Here we can see that Titles III and Titles VI overwhelm the level of appopriations doled out by Congress. These include:
+
+```{r}
+allocations_by_title <- ukraine_cleaned %>% 
+  group_by(title, title_description) %>% 
+  summarise('Total Appropriations ($)' = sum(appropriations_cleaned)) %>% 
+  ungroup()
+
+allocations_by_title %>%
+  select(title, title_description, 'Total Appropriations ($)') %>% 
+  filter((title == 'Title III') | (title == 'Title VI')) %>% 
+  pander()
+```
+
+From here on out, because defense and state operations constitute the overwhelming majority of 
+appropriations, I'll visualize them separately. Here's what the same bar chart looks like when separated:
+
+```{r}
+ukraine_grouped <- ukraine_cleaned %>% 
+  mutate(title_grouped = case_when(
+    title == 'Title III' ~ 'Defense/State',
+    title == 'Title VI' ~ 'Defense/State',
+    TRUE ~ 'Other'
+  ))
+
+ukraine_grouped %>%
+  # Group by title
+  group_by(title, title_grouped) %>%
+  # Count everything up!
+  summarise(total_appr = sum(appropriations_cleaned)/1000000) %>%
+  ungroup() %>%
+  # Start our visualization, creating our groups by party affiliation
+  ggplot(aes(x = reorder(title, -total_appr), y = total_appr, fill = total_appr)) +
+  geom_col() +
+  # Change the theme to classic
+  theme_classic() +
+  facet_wrap(~title_grouped, scales = 'free') + 
+  scale_fill_gradient(low = 'gray', high = 'slateblue', name = 'Appropriations') +
+  # Let's change the names of the axes and title
+    xlab("Title of Bill") +
+    ylab("Total Appropriations (millions of $)") +
+    labs(title = "Total Appropriations in Congressional Spending Bill (H.R. 2471) by Title",
+         subtitle = paste0("Allocations are broken out across ", n_distinct(ukraine_cleaned$title), " Titles and ", nrow(ukraine_cleaned), " line items."),
+         caption = "Data is gathered from the House of Representatives Appropriations page at https://appropriations.house.gov/news/press-releases/house-passes-government-funding-legislation") +
+    # format our title and subtitle
+    theme(plot.title = element_text(hjust = 0, color = "slateblue4"),
+          plot.subtitle = element_text(hjust = 0, color = "slateblue2", size = 10),
+          plot.caption = element_text(color = "dark gray", size = 10, face = "italic"))
+```
+
+Within the Defense and State portions, here are some of the most notable line-items for appropriations:
+
+```{r ds_line_items}
+ukraine_grouped %>% 
+  filter(title_grouped == 'Defense/State') %>% 
+  arrange(desc(appropriations_cleaned)) %>% 
+  select(title_description, appropriations, description) %>% 
+  head() %>% 
+  pander()
+```
